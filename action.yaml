@@ -1,0 +1,77 @@
+name: Create Github Deployment
+description: Creates a Github Deployment based on a named ref
+inputs:
+  ref:
+    description: The ref to deploy. This can be a branch, tag, or SHA.
+    required: true
+    default: ${{ github.ref }}
+  task:
+    description: Specifies a task to execute
+    required: false
+    default: deploy
+  auto_merge:
+    description: Attempts to automatically merge the default branch into the requested ref, if it's behind the default branch
+    required: false
+    default: true
+  required_contexts:
+    description: The status contexts to verify against commit status checks
+    required: false
+  payload:
+    description: JSON payload with extra information about the deployment
+    required: false
+  environment:
+    description: Name for the target deployment environment
+    required: false
+    default: production
+  description:
+    description: Short description of the deployment.
+    required: false
+  transient_environment:
+    description: Specifies if the given environment is specific to the deployment and will no longer exist at some point in the future
+    required: false
+    default: false
+  production_environment:
+    description: Specifies if the given environment is one that end-users directly interact with
+    required: false
+    default: true
+  token:
+    description: Github Token
+    required: true
+    default: ${{ github.token }}
+  repository:
+    description: The repository to use
+    required: false
+    default: ${{ github.repository }}
+outputs:
+  id:
+    description: Deployment ID created
+    value: ${{ steps.create-deployment.outputs.id }}
+  json:
+    description: Deployment JSON
+    value: ${{ steps.create-deployment.outputs.json }}
+runs:
+  using: composite
+  steps:
+  - shell: bash
+    id: create-deployment
+    env:
+      GITHUB_TOKEN: ${{ inputs.token }}
+      GH_REPO: ${{ inputs.repository }}
+    run: |
+      deployment=$(
+        gh api repos/$GH_REPO/deployments \
+          -F ref=${{ inputs.ref }} \
+          -F task=${{ inputs.task }} \
+          -F auto_merge=${{ inputs.auto_merge }} \
+          -F payload='${{ inputs.payload }}' \
+          -F environment=${{ inputs.environment }} \
+          -F description=${{ inputs.description }} \
+          -F transient_environment=${{ inputs.transient_environment }} \
+          -F production_environment=${{ inputs.production_environment }}
+      )
+      echo "::set-output name=id::$(jq -r '.id' <<< $deployment)"
+      echo "::set-output name=json::$deployment"
+      echo "::group::Outputs"
+      echo "id=$(jq -r '.id' <<< $deployment)"
+      echo "json=$deployment"
+      echo "::endgroup::"
