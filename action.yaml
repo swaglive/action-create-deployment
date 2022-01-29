@@ -71,7 +71,9 @@ runs:
       )
       echo "::set-output name=id::$(jq -r '.id' <<< $deployment)"
       echo "::set-output name=json::$deployment"
+
+  - shell: bash
+    run: |
       echo "::group::Outputs"
-      echo "id=$(jq -r '.id' <<< $deployment)"
-      echo "json=$deployment"
+      yq e -P <<< '${{ toJSON(steps.create-deployment.outputs) }}'
       echo "::endgroup::"
