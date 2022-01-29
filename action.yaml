@@ -58,6 +58,11 @@ runs:
       GITHUB_TOKEN: ${{ inputs.token }}
       GH_REPO: ${{ inputs.repository }}
     run: |
+      opts=()
+      description='${{ inputs.description }}'
+
+      [[ $description =~ .+ ]] && opts+=(-F description=\'$description\')
+
       deployment=$(
         gh api repos/$GH_REPO/deployments \
           -F ref=${{ inputs.ref }} \
@@ -65,9 +70,9 @@ runs:
           -F auto_merge=${{ inputs.auto_merge }} \
           -F payload='${{ inputs.payload }}' \
           -F environment=${{ inputs.environment }} \
-          -F description=${{ inputs.description }} \
           -F transient_environment=${{ inputs.transient_environment }} \
-          -F production_environment=${{ inputs.production_environment }}
+          -F production_environment=${{ inputs.production_environment }} \
+          ${opts[@]}
       )
       echo "::set-output name=id::$(jq -r '.id' <<< $deployment)"
       echo "::set-output name=json::$deployment"
