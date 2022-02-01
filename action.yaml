@@ -12,9 +12,10 @@ inputs:
   auto_merge:
     description: Attempts to automatically merge the default branch into the requested ref, if it's behind the default branch
     required: false
-    default: true
   required_contexts:
-    description: The status contexts to verify against commit status checks
+    description: >
+      The status contexts to verify against commit status checks.
+      Values: `true` (All), `false` (None), string
     required: false
   payload:
     description: JSON payload with extra information about the deployment
@@ -29,11 +30,9 @@ inputs:
   transient_environment:
     description: Specifies if the given environment is specific to the deployment and will no longer exist at some point in the future
     required: false
-    default: false
   production_environment:
     description: Specifies if the given environment is one that end-users directly interact with
     required: false
-    default: true
   token:
     description: Github Token
     required: true
@@ -45,40 +44,45 @@ inputs:
 outputs:
   id:
     description: Deployment ID created
-    value: ${{ steps.create-deployment.outputs.id }}
+    value: ${{ steps.create.outputs.id }}
   json:
     description: Deployment JSON
-    value: ${{ steps.create-deployment.outputs.json }}
+    value: ${{ steps.create.outputs.json }}
 runs:
   using: composite
   steps:
   - shell: bash
-    id: create-deployment
+    id: create
     env:
       GITHUB_TOKEN: ${{ inputs.token }}
       GH_REPO: ${{ inputs.repository }}
+      OPTS: |
+        ref: ${{ toJSON(inputs.ref || null) }}
+        task: ${{ toJSON(inputs.task || null) }}
+        auto_merge: ${{ inputs.auto_merge }}
+        payload: ${{ inputs.payload }}
+        environment: ${{ toJSON(inputs.environment || null) }}
+        transient_environment: ${{ inputs.transient_environment }}
+        production_environment: ${{ inputs.production_environment }}
+        description: ${{ toJSON(inputs.description || null) }}
+        required_contexts: ${{ toJSON(inputs.required_contexts || null) }}
     run: |
-      opts=()
-      description='${{ inputs.description }}'
-
-      [[ $description =~ .+ ]] && opts+=(-F description=\'$description\')
-
       deployment=$(
-        gh api repos/$GH_REPO/deployments \
-          -F ref=${{ inputs.ref }} \
-          -F task=${{ inputs.task }} \
-          -F auto_merge=${{ inputs.auto_merge }} \
-          -F payload='${{ inputs.payload }}' \
-          -F environment=${{ inputs.environment }} \
-          -F transient_environment=${{ inputs.transient_environment }} \
-          -F production_environment=${{ inputs.production_environment }} \
-          ${opts[@]}
+        yq e -o json <<< $OPTS \
+        | jq '
+          .
+          | .required_contexts |= (if . == "false" then "" else . end)
+          | .required_contexts |= (if . == "true" then null else . end)
+          | .required_contexts |= (select(. != null) | split("\n") | map(select(length > 0)))
+          | del(.. | nulls)' \
+        | gh api repos/$GH_REPO/deployments --input -
       )
-      echo "::set-output name=id::$(jq -r '.id' <<< $deployment)"
-      echo "::set-output name=json::$deployment"
+
+      echo "::set-output name=id::$(jq -rc '.id' <<< $deployment)"
+      echo "::set-output name=json::$(jq -c '.' <<< $deployment)"
 
   - shell: bash
     run: |
       echo "::group::Outputs"
-      yq e -P <<< '${{ toJSON(steps.create-deployment.outputs) }}'
+      yq e -P <<< '${{ toJSON(steps.create.outputs) }}'
       echo "::endgroup::"
