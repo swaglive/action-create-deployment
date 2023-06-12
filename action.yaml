@@ -78,8 +78,8 @@ runs:
         | gh api repos/$GH_REPO/deployments --input -
       )
 
-      echo "id::$(jq -rc '.id' <<< $deployment)" >> $GITHUB_OUTPUT
-      echo "json::$(jq -c '.' <<< $deployment)" >> $GITHUB_OUTPUT
+      echo "id=$(jq -rc '.id' <<< $deployment)" >> $GITHUB_OUTPUT
+      echo "json=$(jq -c '.' <<< $deployment)" >> $GITHUB_OUTPUT
 
   - shell: bash
     run: |
